@@ -1,0 +1,55 @@
+# Django & Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+*.sqlite3
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.ENV/
+*.env/
+*.venv/
+Pipfile.lock
+poetry.lock
+
+# Environment variables (any .env file, in any folder)
+.env
+*.env
+**/.env
+**/*.env
+
+# Django specific
+*.log
+staticfiles/
+media/
+db.sqlite3
+
+# VSCode / PyCharm / Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Bytecode and cache
+.DS_Store
+*.egg-info/
+.eggs/
+*.manifest
+*.spec
+
+# Coverage / test reports
+.coverage
+htmlcov/
+.tox/
+pytest_cache/
+
+# Migrations cache (optional - keep if you want to version control migrations)
+# **/migrations/*.py
+# !**/migrations/__init__.py
+node_modules/
+**/node_modules/
