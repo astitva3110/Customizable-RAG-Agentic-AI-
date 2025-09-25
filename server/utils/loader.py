@@ -12,7 +12,7 @@ dotenv.load_dotenv()
 # In[15]:
 
 
-import os
+
 import docx2txt
 import requests
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
@@ -20,7 +20,7 @@ from typing import List
 from langchain.schema import Document
 from pymongo import MongoClient
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 import os
 import uuid
@@ -107,66 +107,58 @@ def load_from_mongodb(connection_uri: str, db_name: str, collection_name: str, q
 
 
 
-
-def splitter(docs: List[Document], chunk_size=500, chunk_overlap=100) -> List[Document]:
-    try:
-        if not docs:
-            return []
-        avg_length = sum(len(doc.page_content) for doc in docs) / len(docs)
-        if avg_length > chunk_size:
-            splitters = RecursiveCharacterTextSplitter(
-                chunk_size=chunk_size,
-                chunk_overlap=chunk_overlap
-            )
-            return splitters.split_documents(docs)
-        else:
-            return docs
-    except Exception as e:
-        print(f"Error from splitter: {e}")
-        return []
-
-
-# In[23]:
-
-
-def embedings_store(docs: List[Document], client, collection_name: str = None):
+def splitter(docs: List[Document], chunk_size=500, chunk_overlap=100):
     if not docs:
-        return None, []
-    try:
-        if collection_name is None:
-            collection_name = f"collection_{uuid.uuid4().hex[:8]}"
+        return []
+    
+    
+    combined_text = "\n".join(doc.page_content for doc in docs)
+    docs = [Document(page_content=combined_text)]  
+    
 
-        # Use API key from env
-        embeddings = GoogleGenerativeAIEmbeddings(
-            model="models/embedding-001",
-            google_api_key=os.getenv("GOOGLE_API_KEY")
-        )
+    splitters = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap
+    )
+    return splitters.split_documents(docs)
 
-        ids, metadatas, contents = [], [], []
-        for idx, doc in enumerate(docs):
-            ids.append(str(idx))
-            metadatas.append(doc.metadata or {})
-            contents.append(doc.page_content)
 
+def embedings_store(docs, client, collection_name=None):
+    if collection_name is None:
+        collection_name = f"collection_{uuid.uuid4().hex[:8]}"
+
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
+
+    ids, metadatas, contents = [], [], []
+    for idx, doc in enumerate(docs):
+        ids.append(str(idx))
         
-        vectorstore = Chroma(
-            client=client,
-            collection_name=collection_name,
-            embedding_function=embeddings   
-        )
+       
+        metadata = doc.metadata if doc.metadata else {"source": "unknown"}
+        metadatas.append(metadata)
+        
+        contents.append(doc.page_content)
 
-        vectorstore.add_texts(
-            texts=contents,
-            metadatas=metadatas,
-            ids=ids
-        )
-
-        print(f" Stored {len(docs)} docs in collection: {collection_name}")
-        return collection_name, ids
-
+    try:
+        vectors = embeddings.embed_documents(contents) 
     except Exception as e:
-        print(f" Error embedding & storing docs: {e}")
-        return None, []
+        raise RuntimeError(f"Embedding failed: {e}")
+
+    vectorstore = Chroma(
+        client=client,
+        collection_name=collection_name,
+        embedding_function=None  
+    )
+
+    vectorstore._collection.upsert(
+        ids=ids,
+        embeddings=vectors,
+        metadatas=metadatas,
+        documents=contents
+    )
+
+    return collection_name
+
 
 
 
@@ -185,7 +177,7 @@ def process_and_store(
     query: dict = {},
     chroma_collection_name: str = None
 ):
-    # Load documents
+    
     docs = []
     if source_type == "file" and file_path:
         docs = document_loader(file_path)
@@ -197,22 +189,11 @@ def process_and_store(
         print("Invalid source or missing parameters")
         return None, []
 
-    # Split documents
+   
     docs = splitter(docs)
 
-    # Embed & Store
+   
     return embedings_store(docs, client, chroma_collection_name)
-
-
-# In[25]:
-
-
-
-
-# In[13]:
-
-
-# In[ ]:
 
 
 

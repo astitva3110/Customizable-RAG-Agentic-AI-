@@ -10,13 +10,15 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 import os
-from dotenv import load_dotenv
+
+# settings.py
+import dotenv
+dotenv.load_dotenv()
+
 from urllib.parse import urlparse, parse_qsl
 
-load_dotenv()
 from pathlib import Path
-CHROMA_API_KEY = os.getenv("api_key")
-CHROMA_TENANT = os.getenv("tenant")
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -49,6 +51,12 @@ INSTALLED_APPS = [
     "dotenv",
     "corsheaders"
 ]
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    )
+}
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

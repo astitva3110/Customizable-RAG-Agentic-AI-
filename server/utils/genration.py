@@ -4,25 +4,26 @@
 # In[10]:
 
 
-get_ipython().run_line_magic('load_ext', 'dotenv')
-get_ipython().run_line_magic('dotenv', '')
+
 
 
 
 # In[11]:
 
-
+import os
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langgraph.graph import StateGraph, END
 from typing_extensions import TypedDict
 from langchain_google_genai import ChatGoogleGenerativeAI
-from retriever import get_retriever
 from langchain_chroma import Chroma
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 import chromadb
 from typing import TypedDict, List, Dict, Any
 from langchain_core.runnables import Runnable
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+from langchain.callbacks.base import BaseCallbackHandler
+import dotenv
+dotenv.load_dotenv()
 
 
 # In[12]:
@@ -37,12 +38,13 @@ def make_user_retriever(collection_names: list[str], k: int = 3):
     """
     try:
         cloud_client = chromadb.CloudClient(
-            api_key=api_key,
-            tenant=tenant,
-            database=database
+            api_key="ck-Dz6qp9edtXJ4tp8uSDkHxKSSSMDLW1mbwK6UgNJ8h78W",
+            tenant="440b6fee-57fb-4c44-a43a-037124a377ce",
+            database="Project"
         )
 
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
+
         retrievers = []
 
         for name in collection_names:
@@ -51,13 +53,13 @@ def make_user_retriever(collection_names: list[str], k: int = 3):
                 collection_name=name,
                 embedding_function=embeddings
             )
-            retrievers.append(chroma_client)  
+            retrievers.append(chroma_client)  # store Chroma client, not retriever yet
 
         def filtered_retrieve(query: str):
             all_results = []
             for chroma_client in retrievers:
                 docs_with_scores = chroma_client.similarity_search_with_score(query, k=k)
-                
+                # docs_with_scores -> List of (Document, float_score)
                 for doc, score in docs_with_scores:
                     if score >= SIMILARITY_THRESHOLD:
                         all_results.append(doc)
@@ -66,7 +68,7 @@ def make_user_retriever(collection_names: list[str], k: int = 3):
         return filtered_retrieve
 
     except Exception as e:
-        print(f" Error connecting retriever: {e}")
+        print(f"❌ Error connecting retriever: {e}")
         return None
 
 
@@ -79,15 +81,6 @@ class RagState(TypedDict):
     answer:str
     history: List[Dict[str, str]]
 
-
-
-# In[ ]:
-
-
-
-
-
-# In[29]:
 
 
 def make_retrieve_node(retriever):
@@ -158,9 +151,6 @@ Question:
 
 # In[49]:
 
-
-from langchain.callbacks.base import BaseCallbackHandler
-
 class TokenCaptureCallback(BaseCallbackHandler):
     def __init__(self):
         self.tokens = []
@@ -173,31 +163,24 @@ class TokenCaptureCallback(BaseCallbackHandler):
 # In[50]:
 
 
-def build_rag_app(user_collections):
-    
+def build_rag_app(user_collections: List[str]):
     retriever = make_user_retriever(user_collections)
 
-    capture_cb = TokenCaptureCallback()
     chat = ChatGoogleGenerativeAI(
         model="gemini-1.5-flash",
         temperature=0,
         disable_streaming=False,
-        callbacks=[capture_cb]  
+        google_api_key=os.getenv("GOOGLE_API_KEY")
     )
 
-    graph = StateGraph(RagState)
+    graph = StateGraph(dict)  # Use simple dict as state
     graph.add_node("retrieve", make_retrieve_node(retriever))
     graph.add_node("generate", lambda s: generation_node(s, chat))
-
-
-
     graph.set_entry_point("retrieve")
     graph.add_edge("retrieve", "generate")
     graph.add_edge("generate", END)
 
-    return graph.compile()
-
-
+    return graph, chat
 
 
 # In[51]:
