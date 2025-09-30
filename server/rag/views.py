@@ -61,7 +61,7 @@ class RAGIngestView(APIView):
                     temp_file_path = temp_file.name
 
                 docs = document_loader(temp_file_path)
-                os.remove(temp_file_path)  # cleanup after processing
+                os.remove(temp_file_path) 
             elif source_type == "api":
                 endpoint_url = request.data.get("endpoint_url")
                 docs = load_from_api(endpoint_url)
@@ -89,11 +89,14 @@ class RAGIngestView(APIView):
             return Response({"status": "500", "message": str(e), "data": {}})
 
 
+
 class RAGQueryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         question = request.data.get("question")
+        history = request.data.get("history", [])
+
         if not question:
             return Response({"error": "Question is required"}, status=400)
 
@@ -102,14 +105,14 @@ class RAGQueryView(APIView):
 
         retriever = make_user_retriever(user_collections)
         chat = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
+            model="gemini-1.5",
             temperature=0,
             google_api_key=os.getenv("GOOGLE_API_KEY"),
             disable_streaming=False
         )
 
         retrieve_fn = make_retrieve_node(retriever)
-        state = {"question": question, "history": []}
+        state = {"question": question, "history": history}
         state = retrieve_fn(state)
 
         result = generation_node(state, chat)
@@ -118,6 +121,6 @@ class RAGQueryView(APIView):
             "question": question,
             "context": result["context"],
             "answer": result["answer"],
-            "history": result["history"],
+            "history": result["history"],  
         })
 

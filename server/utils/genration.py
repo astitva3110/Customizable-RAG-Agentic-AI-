@@ -38,8 +38,8 @@ def make_user_retriever(collection_names: list[str], k: int = 3):
     """
     try:
         cloud_client = chromadb.CloudClient(
-            api_key="ck-Dz6qp9edtXJ4tp8uSDkHxKSSSMDLW1mbwK6UgNJ8h78W",
-            tenant="440b6fee-57fb-4c44-a43a-037124a377ce",
+            api_key=os.getenv("api_key"),
+            tenant=os.getenv("tenant"),
             database="Project"
         )
 
@@ -53,7 +53,7 @@ def make_user_retriever(collection_names: list[str], k: int = 3):
                 collection_name=name,
                 embedding_function=embeddings
             )
-            retrievers.append(chroma_client)  # store Chroma client, not retriever yet
+            retrievers.append(chroma_client)  
 
         def filtered_retrieve(query: str):
             all_results = []
@@ -68,7 +68,7 @@ def make_user_retriever(collection_names: list[str], k: int = 3):
         return filtered_retrieve
 
     except Exception as e:
-        print(f"❌ Error connecting retriever: {e}")
+        print(f" Error connecting retriever: {e}")
         return None
 
 
@@ -156,7 +156,7 @@ class TokenCaptureCallback(BaseCallbackHandler):
         self.tokens = []
 
     def on_llm_new_token(self, token: str, **kwargs):
-        print(token, end="", flush=True)  # prints live tokens
+        print(token, end="", flush=True)  
         self.tokens.append(token)
 
 
@@ -173,7 +173,7 @@ def build_rag_app(user_collections: List[str]):
         google_api_key=os.getenv("GOOGLE_API_KEY")
     )
 
-    graph = StateGraph(dict)  # Use simple dict as state
+    graph = StateGraph(dict)  
     graph.add_node("retrieve", make_retrieve_node(retriever))
     graph.add_node("generate", lambda s: generation_node(s, chat))
     graph.set_entry_point("retrieve")
